@@ -1,0 +1,61 @@
+name: mongo-sharding
+
+services:
+  configSrv:
+    image: mongo:7.0
+    command: ["mongod", "--configsvr", "--replSet", "config_server", "--bind_ip_all", "--port", "27017"]
+    volumes:
+      - config-data:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27017", "--quiet", "--eval", "db.adminCommand({ping: 1})"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  shard1-1:
+    image: mongo:7.0
+    command: ["mongod", "--shardsvr", "--replSet", "shard1", "--bind_ip_all", "--port", "27018"]
+    volumes:
+      - shard1-1-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--quiet", "--eval", "db.adminCommand({ping: 1})"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  shard2-1:
+    image: mongo:7.0
+    command: ["mongod", "--shardsvr", "--replSet", "shard2", "--bind_ip_all", "--port", "27019"]
+    volumes:
+      - shard2-1-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27019", "--quiet", "--eval", "db.adminCommand({ping: 1})"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mongos_router:
+    image: mongo:7.0
+    command: ["mongos", "--configdb", "config_server/configSrv:27017", "--bind_ip_all", "--port", "27020"]
+    depends_on:
+      - configSrv
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27020", "--quiet", "--eval", "db.adminCommand({ping: 1})"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  pymongo_api:
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - mongos_router
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27020/?w=majority"
+      MONGODB_DATABASE_NAME: "somedb"
+
+volumes:
+  config-data:
+  shard1-1-data:
+  shard2-1-data:
